@@ -1,5 +1,6 @@
 <?php
-/*Plugin Name: Maak Film post type
+/*
+Plugin Name: Film CPT
 Description: Deze plugin registreert de 'film' post type
 Version: 1.0
 License: GPLv2
@@ -9,13 +10,9 @@ text-domain: netvlix
 // Zorg ervoor dat dit script niet direct wordt uitgevoerd.
 defined( 'ABSPATH' ) or die( 'Do not run this script directly!' );
 
-class NetvlixAPI {
-
-	
-
 // Maak een Custom Post Type voor de films uit MovieDB
 function netvlix_create_movie_post_type() {
-	$labels = array(
+$labels = array(
 		'name'                  => _x( 'Films', 'Post Type General Name', 'netvlix' ),
 		'singular_name'         => _x( 'Film', 'Post Type Singular Name', 'netvlix' ),
 		'menu_name'             => __( 'Films', 'netvlix' ),
@@ -131,46 +128,58 @@ add_action( 'admin_init', 'netvlix_display_settings_panel_fields' );
 
 // Voeg het menu item toe aan de admin pagina
 function netvlix_add_api_settings_menu_item() {
-	/*add_menu_page( 'theMovieDB Instellingen',
-								 'MovieDB Instellingen',
-								 'manage_options',
-								 'themoviedb-settings',
-								 'netvlix_api_settings_page',
-								 null, 99
-							 );*/
-	add_submenu_page( "options-general.php",  // Which menu parent
-                  "theMovieDatabase",            // Page title
-                  "the Movie Database",            // Menu title
-                  "manage_options",       // Minimum capability (manage_options is an easy way to target administrators)
-                  "the-movie-database",            // Menu slug
-                  "netvlix_api_settings_page"     // Callback that prints the markup
+
+	add_submenu_page( 'options-general.php',
+                  'theMovieDatabase',
+                  'the Movie Database',
+                  'manage_options',
+                  'the-movie-database',
+                  'netvlix_api_settings_page'
                );
 }
 add_action( 'admin_menu', 'netvlix_add_api_settings_menu_item' );
 
+// Laad the MovieDB configuratie
+function netvlix_load_moviedb_config() {
+	if ( get_option( 'netvlix_moviedb_apikey' ) != '' ) {
+		$response = wp_remote_get( 'https://api.themoviedb.org/3/configuration?api_key=' . get_option( 'netvlix_moviedb_apikey' ) );
+
+		// Sla een tweetal parameters op voor het tonen van de film posters
+		if ( is_array( $response ) ) {
+			$body = $response['body'];
+			$config = json_decode( $body, true );
+			$GLOBALS['base_url'] = $config['images']['secure_base_url'];
+			$GLOBALS['poster_sizes'] = $config['images']['poster_sizes'];
+		}
+	}
+}
+add_action( 'init', 'netvlix_load_moviedb_config' );
+
 // Controleer of een genre al bestaat
 function netvlix_genre_exists( $genre ) {
 	$existing_terms = get_terms( array('taxonomy' => 'netvlix_genre') );
-	foreach($existing_terms as $term) {
-		if ($term->name === $genre ) return true;
+	foreach ( $existing_terms as $term ) {
+		if ( $term->name === $genre ) {
+			return true;
+		}
 	}
 	return false;
 }
 
 // Haal alle genres op uit the MovieDB
 function netvlix_load_genres() {
-	if ( get_option( 'netvlix_moviedb_apikey' ) != '' ) {
+	if ( '' != get_option( 'netvlix_moviedb_apikey' ) ) {
 		$response = wp_remote_get( 'https://api.themoviedb.org/3/genre/movie/list?api_key=' . get_option( 'netvlix_moviedb_apikey' ) );
 
 		if ( is_array( $response ) ) {
   		$body = $response['body'];
-			$genres = json_decode($body, true);
+			$genres = json_decode( $body, true );
 
-			if (count($genres['genres'])) {
+			if ( count( $genres['genres'] ) ) {
 
-				foreach($genres['genres'] as $genre) {
+				foreach ( $genres['genres'] as $genre ) {
 
-					if (!netvlix_genre_exists($genre['id'])) {
+					if ( !netvlix_genre_exists( $genre['id'] ) ) {
 
 						wp_insert_term(
 							$genre['id'],
@@ -193,8 +202,8 @@ function netvlix_load_genres() {
 // Verwijder alle films in WordPress, wordt uitgevoerd als de cronjob loopt
 function netvlix_delete_all_movies() {
 	$movies = get_posts( array( 'post_type' => 'netvlix_film', 'numberposts' => -1 ) );
-	if ($movies != false) {
-		foreach($movies as $movie) {
+	if ( !$movies ) {
+		foreach ( $movies as $movie ) {
 			wp_delete_post( $movie->ID, true );
 		}
 	}
@@ -208,37 +217,37 @@ function netvlix_load_popular_movies() {
 		if ( get_option( 'netvlix_moviedb_apikey' ) != '' ) {
 			$page = 1;
 
-			while($page < 4) {
+			while ( $page < 4 ) {
 				$response = wp_remote_get( 'https://api.themoviedb.org/3/discover/movie?sort_by=popularity.desc&page=' . $page . '&api_key=' . get_option( 'netvlix_moviedb_apikey' ) );
 
 				if ( is_array( $response ) ) {
 		  		$body = $response['body'];
-					$moviedb_data = json_decode($body, true);
+					$moviedb_data = json_decode( $body, true );
 
-					if (isset($moviedb_data['results'])) {
+					if ( isset( $moviedb_data['results'] ) ) {
 
-						if ($page === 3) {
+						if ( 3 === $page ) {
 							$films = array_slice( $moviedb_data['results'], 0, 10 );
 						} else {
 							$films = $moviedb_data['results'];
 						}
 
-						foreach($films as $film) {
+						foreach ( $films as $film ) {
 
 							wp_insert_post( array(
-								'post_type' => 'netvlix_film',
-								'post_title' => $film['title'],
-								'post_content' => $film['overview'],
-								'meta_input' => array(
-									'popularity' => $film['popularity'],
-									'poster_image' => $film['poster_path'],
-									'release_date' => $film['release_date'],
-									'vote_average' => $film['vote_average'],
+								'post_type' 		=> 'netvlix_film',
+								'post_title'		=> $film['title'],
+								'post_content'	=> $film['overview'],
+								'meta_input' 		=> array(
+									'popularity' 		=> $film['popularity'],
+									'poster_image' 	=> $film['poster_path'],
+									'release_date' 	=> $film['release_date'],
+									'vote_average' 	=> $film['vote_average'],
 								),
-								'tax_input' => array(
-									'netvlix_genre' => join( ',', $film['genre_ids'] ),
+								'tax_input' 		=> array(
+									'netvlix_genre'	=> join( ',', $film['genre_ids'] ),
 								),
-								'post_status' => 'publish',
+								'post_status'		=> 'publish',
 								)
 							);
 
@@ -254,16 +263,15 @@ add_action( 'netvlix_load_movie_hook', 'netvlix_load_polular_movies' );
 
 // Registreer cronjob voor het dagelijks laden van de populairste films
 function netvlix_register_daily_load_popular_movies_event() {
-	if( !wp_next_scheduled( 'netvlix_load_movie_hook' ) ) {
+	if ( !wp_next_scheduled( 'netvlix_load_movie_hook' ) ) {
 		wp_schedule_event( time(), 'daily', 'netvlix_load_movie_hook' );
 	}
 }
-add_action( 'init', 'netvlix_register_daily_load_popular_movies_event');
+add_action( 'init', 'netvlix_register_daily_load_popular_movies_event' );
 
 // Als er nog geen films in WordPress zitten, haal ze dan de eerste keer op uit the MovieDB
 function netvlix_initial_movie_load() {
-	if( count( get_posts( array( 'post_type' => 'netvlix_film ') ) ) === 0) {
+	if ( 0 === count( get_posts( array( 'post_type' => 'netvlix_film ') ) ) )
 		netvlix_load_popular_movies();
-	}
 }
-add_action('init', 'netvlix_initial_movie_load');
+add_action( 'init', 'netvlix_initial_movie_load' );

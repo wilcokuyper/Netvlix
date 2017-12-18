@@ -8,7 +8,7 @@
 
       <div class="col-sm-12 text-center">
 
-        <img class="tmdb-logo" src="<?php echo get_theme_file_uri( '/assets/images/tmdb.png' ); ?>" />
+        <img class="tmdb-logo" src="<?php echo get_theme_file_uri( '/assets/images/tmdb.png' ); ?>" alt="the Movie Database logo">
 
       </div>
 
